@@ -5,40 +5,50 @@ from PIL import Image
 # --- PAGE CONFIG ---
 st.set_page_config(page_title="Phoenix-Eye", page_icon="🔥", layout="wide")
 
-# --- SIDEBAR: CONFIGURATION ---
-with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/2621/2621040.png", width=50)
-    st.title("⚙️ System Config")
-    
-    # SAFE: Ask for Key here (prevents GitHub from revoking it)
-    api_key = st.text_input("Enter Google API Key", type="password")
-    
-    selected_model = None
-    
-    if api_key:
-        genai.configure(api_key=api_key)
+# --- AUTHENTICATION (The "Invisible" Key) ---
+# This looks for the key in the cloud's secret vault
+try:
+    if "GOOGLE_API_KEY" in st.secrets:
+        API_KEY = st.secrets["GOOGLE_API_KEY"]
+        genai.configure(api_key=API_KEY)
+        auth_status = "✅ Connected (Cloud)"
+        
+        # --- MODEL SELECTOR (Automatic) ---
         try:
-            # DYNAMIC MODEL SELECTOR
             model_list = []
             for m in genai.list_models():
                 if 'generateContent' in m.supported_generation_methods:
                     model_list.append(m.name)
             
-            if model_list:
-                st.success(f"✅ Found {len(model_list)} Models")
-                # Default to Flash if available, otherwise first on list
-                default_ix = 0
-                if "models/gemini-1.5-flash" in model_list:
-                    default_ix = model_list.index("models/gemini-1.5-flash")
+            # Smart default selection
+            default_ix = 0
+            if "models/gemini-1.5-flash" in model_list:
+                default_ix = model_list.index("models/gemini-1.5-flash")
                 
-                selected_model = st.selectbox("Select Model", model_list, index=default_ix)
-            else:
-                st.error("Key valid, but no models found.")
+            selected_model = model_list[default_ix] if model_list else None
+            
         except Exception as e:
-            st.error(f"Key Error: {e}")
+            selected_model = None
+            auth_status = f"⚠️ API Error: {e}"
+            
     else:
-        st.warning("⚠️ Paste API Key to Start")
+        st.error("Secrets not found. Please add GOOGLE_API_KEY to Streamlit Secrets.")
+        st.stop()
+        
+except FileNotFoundError:
+    # Fallback for local testing if you haven't set up secrets.toml
+    # You can temporarily paste your key here for local run only
+    # API_KEY = "PASTE_YOUR_KEY_HERE_FOR_LOCAL_ONLY"
+    st.warning("Running locally? Set up `.streamlit/secrets.toml` or uncomment the local key line.")
+    st.stop()
 
+# --- SIDEBAR ---
+with st.sidebar:
+    st.image("https://cdn-icons-png.flaticon.com/512/2621/2621040.png", width=50)
+    st.title("System Status")
+    st.success(auth_status)
+    if selected_model:
+        st.caption(f"Brain: `{selected_model}`")
     st.markdown("---")
     st.info("TechSprint 2025 Submission")
 
@@ -47,10 +57,9 @@ st.title("🔥 Phoenix-Eye: The AI Hardware Surgeon")
 st.markdown("### `Multimodal Diagnosis & Logic Resurrection System`")
 
 if not selected_model:
-    st.info("👈 Please enter your API Key in the sidebar to connect to the Google Brain.")
+    st.error("Could not find a working AI model. Check API Quota.")
     st.stop()
 
-# Initialize Model
 model = genai.GenerativeModel(selected_model)
 
 # Tab Selection
@@ -71,7 +80,7 @@ with tab1:
         with col2:
             st.header("2. AI Analysis")
             if st.button("Run Diagnostics", type="primary"):
-                with st.spinner(f"Analyzing with {selected_model}..."):
+                with st.spinner(f"Analyzing circuit..."):
                     try:
                         prompt = """
                         You are an expert Electronics Repair Engineer. Analyze this circuit board image.
@@ -100,7 +109,7 @@ with tab2:
     
     with c2:
         if st.button("Generate Firmware"):
-            with st.spinner(f"Writing Code with {selected_model}..."):
+            with st.spinner(f"Writing Code..."):
                 try:
                     code_prompt = f"""
                     Write complete Arduino C++ code for:
